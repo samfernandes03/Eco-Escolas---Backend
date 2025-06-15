@@ -1,0 +1,83 @@
+const { pool } = require('../config/db');
+
+async function listarPermissoesDoPerfil(req, res) {
+  const perfilId = parseInt(req.params.id, 10);
+  try {
+    const [rows] = await pool.query(
+      `SELECT p.ID_Permissao AS id, p.Nome AS nome
+       FROM permissao p
+       INNER JOIN perfilpermissao pp ON p.ID_Permissao = pp.ID_Permissao
+       WHERE pp.ID_Perfil = ?`,
+      [perfilId]
+    );
+    res.status(200).json(rows);
+  } catch (error) {
+    console.error('Erro ao listar permissões do perfil:', error);
+    res.status(500).json({ errorMessage: 'Erro interno do servidor.' });
+  }
+}
+
+async function atribuirPermissoesAoPerfil(req, res) {
+  const perfilId = parseInt(req.params.id, 10);
+  const { permissoes } = req.body;
+
+  if (!Array.isArray(permissoes) || permissoes.some(id => typeof id !== 'number')) {
+    return res.status(400).json({ errorMessage: 'IDs de permissões inválidos.' });
+  }
+
+  try {
+    await pool.query(`DELETE FROM perfilpermissao WHERE ID_Perfil = ?`, [perfilId]);
+
+    if (permissoes.length > 0) {
+      const values = permissoes.map(id => [perfilId, id]);
+      await pool.query(
+        `INSERT INTO perfilpermissao (ID_Perfil, ID_Permissao) VALUES ?`,
+        [values]
+      );
+    }
+
+    res.status(200).json({ message: 'Permissões atribuídas com sucesso.' });
+  } catch (error) {
+    console.error('Erro ao atribuir permissões:', error);
+    res.status(500).json({ errorMessage: 'Erro interno do servidor.' });
+  }
+}
+
+async function removerPermissaoDoPerfil(req, res) {
+    const perfilId = parseInt(req.params.id, 10);
+    const { permissaoId } = req.body;
+  
+    // Validação do parâmetro
+    if (!permissaoId || typeof permissaoId !== 'number') {
+      return res.status(400).json({ errorMessage: 'ID da permissão inválido.' });
+    }
+  
+    try {
+      // Verificar se a permissão existe para esse perfil
+      const [check] = await pool.query(
+        `SELECT * FROM perfilpermissao WHERE ID_Perfil = ? AND ID_Permissao = ?`,
+        [perfilId, permissaoId]
+      );
+  
+      if (check.length === 0) {
+        return res.status(404).json({ errorMessage: 'Permissão ou perfil não encontrado.' });
+      }
+  
+      // Remover a permissão do perfil
+      await pool.query(
+        `DELETE FROM perfilpermissao WHERE ID_Perfil = ? AND ID_Permissao = ?`,
+        [perfilId, permissaoId]
+      );
+  
+      res.status(200).json({ message: 'Permissão removida do perfil.' });
+    } catch (error) {
+      console.error('Erro ao remover permissão:', error);
+      res.status(500).json({ errorMessage: 'Erro interno do servidor.' });
+    }
+  }
+  
+module.exports = {
+  listarPermissoesDoPerfil,
+  atribuirPermissoesAoPerfil,
+  removerPermissaoDoPerfil
+};
