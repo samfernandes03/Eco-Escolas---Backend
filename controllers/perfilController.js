@@ -68,12 +68,16 @@ async function getPerfilById(req, res) {
 }
 
 // Atualizar perfil
+// Atualizar perfil
 async function updatePerfil(req, res) {
   try {
     const id = parseInt(req.params.id, 10);
-    const { nome } = req.body;
+    if (isNaN(id)) {
+      return res.status(400).json({ errorMessage: 'ID inválido.' });
+    }
 
-    if (!nome) {
+    const { nome } = req.body;
+    if (!nome || nome.trim() === '') {
       return res.status(400).json({ errorMessage: 'O nome é obrigatório.' });
     }
 
@@ -82,12 +86,12 @@ async function updatePerfil(req, res) {
       return res.status(404).json({ errorMessage: 'Perfil não encontrado.' });
     }
 
-    const nomeDuplicado = await verificarNomeExistente(nome);
+    const nomeDuplicado = await verificarNomeExistente(nome.trim());
     if (nomeDuplicado && nomeDuplicado.ID_Perfil !== id) {
       return res.status(400).json({ errorMessage: 'O nome do perfil já existe.' });
     }
 
-    const linhasAfetadas = await atualizarPerfil(id, nome);
+    const linhasAfetadas = await atualizarPerfil(id, nome.trim());
     if (linhasAfetadas === 0) {
       return res.status(404).json({ errorMessage: 'Perfil não encontrado.' });
     }
@@ -98,6 +102,7 @@ async function updatePerfil(req, res) {
     res.status(500).json({ errorMessage: 'Erro interno do servidor.' });
   }
 }
+
 
 // Eliminar perfil
 async function deletePerfil(req, res) {

@@ -17,6 +17,13 @@ const app = express();
 
 app.use(express.json()); 
 
+const cors = require('cors');
+app.use(cors({
+  origin: 'http://localhost:5173',
+  credentials: true
+}));
+
+
 // Rotas
 app.use('/api', authRoutes);
 app.use('/api', utilizadorRoutes);
@@ -35,3 +42,4 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Servidor a correr em http://localhost:${PORT}`);
 });
+

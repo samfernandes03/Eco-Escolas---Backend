@@ -37,12 +37,18 @@ async function listarUtilizadores(req, res) {
 async function atualizarUtilizador(req, res) {
   const { id } = req.params;
   const { nome, email, password, idPerfil } = req.body;
+  const idAutenticado = req.utilizador.id;
+  const perfilAutenticado = req.utilizador.idPerfil;
 
   try {
-    const [rows] = await db.pool.query(
-      'SELECT * FROM utilizador WHERE ID_Utilizador = ?',
-      [id]
-    );
+    if (parseInt(id) !== idAutenticado) {
+      // Se não for admin, bloquear a atualização de outro utilizador
+      if (perfilAutenticado !== 2) { // por exemplo, só coordenador pode
+        return res.status(403).json({ errorMessage: 'Não tem permissão para alterar este utilizador.' });
+      }
+    }
+
+    const [rows] = await db.pool.query('SELECT * FROM utilizador WHERE ID_Utilizador = ?', [id]);
 
     if (rows.length === 0) {
       return res.status(404).json({ errorMessage: 'Utilizador não encontrado.' });
@@ -75,7 +81,8 @@ async function atualizarUtilizador(req, res) {
       campos.push('Password = ?');
       valores.push(hashedPassword);
     }
-    if (idPerfil) {
+    if (idPerfil && perfilAutenticado === 2) {
+      // Só coordenadores podem alterar perfil
       campos.push('ID_Perfil = ?');
       valores.push(idPerfil);
     }
@@ -96,6 +103,7 @@ async function atualizarUtilizador(req, res) {
     return res.status(500).json({ errorMessage: 'Erro interno do servidor.' });
   }
 }
+
 
 async function eliminarUtilizador(req, res) {
   const { id } = req.params;
@@ -125,4 +133,57 @@ async function eliminarUtilizador(req, res) {
   }
 }
 
-module.exports = { listarUtilizadores, atualizarUtilizador, eliminarUtilizador };
+async function obterUtilizadorPorId(req, res) {
+  const { id } = req.params;
+  const idAutenticado = req.utilizador.id;
+  const perfilAutenticado = req.utilizador.idPerfil;
+
+  try {
+    // Só coordenadores podem ver outros perfis
+    if (parseInt(id) !== idAutenticado && perfilAutenticado !== 2) {
+      return res.status(403).json({ errorMessage: 'Sem permissão para aceder a este utilizador.' });
+    }
+
+    const [rows] = await db.pool.query(`
+      SELECT 
+        u.ID_Utilizador AS id,
+        u.Nome AS nome,
+        u.Email AS email,
+        u.DataRegisto AS dataRegisto,
+        u.ID_Perfil AS perfil_id,
+        p.Nome AS perfil_nome
+      FROM utilizador u
+      LEFT JOIN perfilutilizador p ON u.ID_Perfil = p.ID_Perfil
+      WHERE u.ID_Utilizador = ?
+    `, [id]);
+
+    if (rows.length === 0) {
+      return res.status(404).json({ errorMessage: 'Utilizador não encontrado.' });
+    }
+
+    const row = rows[0];
+    const utilizador = {
+      id: row.id,
+      nome: row.nome,
+      email: row.email,
+      dataRegisto: row.dataRegisto,
+      perfil: {
+        id: row.perfil_id,
+        nome: row.perfil_nome || 'Desconhecido'
+      }
+    };
+
+    return res.status(200).json(utilizador);
+
+  } catch (error) {
+    console.error('Erro ao obter utilizador por ID:', error);
+    return res.status(500).json({ errorMessage: 'Erro interno do servidor.' });
+  }
+}
+
+module.exports = {
+  listarUtilizadores,
+  atualizarUtilizador,
+  eliminarUtilizador,
+  obterUtilizadorPorId
+};
